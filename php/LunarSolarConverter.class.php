@@ -20,7 +20,7 @@ class LunarSolarConverter
     /*
      * |----4位闰月|-------------13位1为30天，0为29天|
      * */
-
+//存着X年农历每个月的天数以及闰月的月份
     public static $lunar_month_days =
         array(
             1887, 0x1694, 0x16aa, 0x4ad5, 0xab6, 0xc4b7, 0x4ae, 0xa56, 0xb52a,
@@ -41,7 +41,7 @@ class LunarSolarConverter
             0x1a4c, 0x11d26, 0x1aa4, 0x1b54, 0xcd6a, 0xada, 0x95c, 0x949d, 0x149a, 0x1a2a, 0x5b25, 0x1aa4, 0xfb52,
             0x16b4, 0xaba, 0xa95b, 0x936, 0x1496, 0x9a4b, 0x154a, 0x136a5, 0xda4, 0x15ac
         );
-
+//存着X年正月初一对应的公历日期
     public static $solar_1_1 =
         array(
             1887, 0xec04c, 0xec23f, 0xec435, 0xec649, 0xec83e, 0xeca51, 0xecc46, 0xece3a,
@@ -65,7 +65,12 @@ class LunarSolarConverter
             0x105e45, 0x106039, 0x10624c, 0x106441, 0x106635, 0x106849, 0x106a3d, 0x106c51, 0x106e47, 0x10703c, 0x10724f,
             0x107444, 0x107638, 0x10784c, 0x107a3f, 0x107c53, 0x107e48
         );
-
+    /**
+     * @param $data
+     * @param $length   所求值的位数
+     * @param $shift    偏移量 （所求位数移动偏移量后得到）
+     * @return int
+     */
     public static function GetBitInt($data, $length, $shift)
     {
         return ($data & (((1 << $length) - 1) << $shift)) >> $shift;
@@ -129,17 +134,29 @@ class LunarSolarConverter
     {
         $lunar = new Lunar();
         $index = $solar->solarYear - LunarSolarConverter::$solar_1_1[0];
+
+        //将年月日拼接成一个数字 日最多需要5位 月最多需要4位所以年需要左移9位 或操作刚好保留位为1的值
         $data = ($solar->solarYear << 9) | ($solar->solarMonth << 5) | ($solar->solarDay);
+
+        //如果所得偏移量的农历一月一号大于当前日期的值 就向前移动一位
         if (LunarSolarConverter::$solar_1_1[$index] > $data) {
             $index--;
         }
         $solar11 = LunarSolarConverter::$solar_1_1[$index];
+        //获取年份 因为表示年需要12位 表示月和日需要9位 所以会将1 左移12位得到13位 然后减一 获得12位全1值 与 后获得年的位 得到年值
         $y = LunarSolarConverter::GetBitInt($solar11, 12, 9);
         $m = LunarSolarConverter::GetBitInt($solar11, 4, 5);
         $d = LunarSolarConverter::GetBitInt($solar11, 5, 0);
+        //以上获得请求年份的农历正月一号的阳历日期
+
+        //TODO
+        //计算农历正月一号与当前时间相差的天数
         $offset = LunarSolarConverter::SolarToInt($solar->solarYear, $solar->solarMonth, $solar->solarDay) - LunarSolarConverter::SolarToInt($y, $m, $d);
 
+        //X年农历每个月的天数以及闰月的月份
         $days = LunarSolarConverter::$lunar_month_days[$index];
+
+        //获得闰月
         $leap = LunarSolarConverter::GetBitInt($days, 4, 13);
 
         $lunarY = $index + LunarSolarConverter::$solar_1_1[0];
@@ -147,6 +164,7 @@ class LunarSolarConverter
         $offset += 1;
 
         for ($i = 0; $i < 13; $i++) {
+//            13位开始位每月天数 1为30天，0为29天
             $dm = LunarSolarConverter::GetBitInt($days, 1, 12 - $i) == 1 ? 30 : 29;
             if ($offset > $dm) {
                 $lunarM++;
@@ -159,8 +177,10 @@ class LunarSolarConverter
         $lunar->lunarYear = $lunarY;
         $lunar->lunarMonth = $lunarM;
         $lunar->isleap = false;
+        //如果有闰月 且求得的月份大于闰月月份 减一
         if ($leap != 0 && $lunarM > $leap) {
             $lunar->lunarMonth = $lunarM - 1;
+            //不考虑闰月求得的月份 与闰月+1 相等的话说明当月正好位闰月
             if ($lunarM == $leap + 1) {
                 $lunar->isleap = true;
             }
